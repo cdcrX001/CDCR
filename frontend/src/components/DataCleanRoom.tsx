@@ -8,26 +8,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 
-// Add type declaration for window.ethereum
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (...args: any[]) => Promise<any>;
-      on: (event: string, callback: any) => void;
-      removeListener: (event: string, callback: any) => void;
-    }
-  }
-}
-
 const contractABI = [
   "function requestEnclaveCreation(string memory publicKey) public payable returns (bytes32 requestId)",
   "function getEnclaveDetails(bytes32 requestId) public view returns (string memory)",
   "function userRequests(address user, uint256 index) public view returns (bytes32)",
   "event EnclaveRequested(bytes32 indexed requestId, address indexed user)",
   "event EnclaveFulfilled(bytes32 indexed requestId, string encryptedDetails)"
-] as const
+]
 
-const contractAddress = "YOUR_CONTRACT_ADDRESS_HERE"
+const contractAddress = "0x5a5D32d6de16CC57DD8fCDb81F137F20F87128DD"
 
 export function DataCleanRoom() {
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
@@ -90,7 +79,7 @@ export function DataCleanRoom() {
     setIsLoading(true)
     setError(null)
     try {
-      const requests: string[] = []
+      const requests = []
       let index = 0
       while (true) {
         try {
