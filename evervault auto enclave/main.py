@@ -1,17 +1,19 @@
 from typing import List
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import subprocess
 import os
 import json
 import tempfile
-import shutil
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI()
 
 class EnclaveRequest(BaseModel):
     number_of_enclaves: int = Field(..., gt=0, description="Number of enclaves to deploy")
-    # Removed dockerfile_url since we'll use a local dockerfile
 
 class EnclaveResponse(BaseModel):
     domain: str
@@ -23,12 +25,18 @@ class EnclaveDeploymentResponse(BaseModel):
     message: str
 
 @app.post("/deploy-enclaves", response_model=EnclaveDeploymentResponse)
-async def deploy_enclaves(
-    request: EnclaveRequest,
-    api_key: str = Header(..., alias="X-Evervault-API-Key"),
-    app_uuid: str = Header(..., alias="X-App-UUID")
-):
+async def deploy_enclaves(request: EnclaveRequest):
     try:
+        # Get credentials from environment variables
+        api_key = os.getenv("EVERVAULT_API_KEY")
+        app_uuid = os.getenv("EVERVAULT_APP_UUID")
+
+        if not api_key or not app_uuid:
+            raise HTTPException(
+                status_code=500,
+                detail="Missing required environment variables: EVERVAULT_API_KEY and EVERVAULT_APP_UUID"
+            )
+
         # First, verify ev CLI is installed
         try:
             version_result = subprocess.run(
