@@ -108,7 +108,7 @@ async def deploy_enclaves(request: EnclaveRequest):
                 print(f"Initializing enclave: {enclave_name}")
                 try:
                     init_result = subprocess.run(
-                        ["ev", "enclave", "init",
+                        ["EV_API_KEY=ev:key:1:XS9P5d6TRTrOHySwDmSmCjLRTyDqiIvG7AGh0kY4uxd8GOWAMUcQCBFpUrr1sVzD:xoDH/A:8RRn0v", "EV_APP_UUID=app_ebfec9b3cfdc","ev", "enclave", "init",
                          "-f", dockerfile_path,
                          "--name", enclave_name,
                          "--egress"],

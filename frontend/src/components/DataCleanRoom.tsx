@@ -24,7 +24,7 @@ const contractABI = [
   "event EnclaveFulfilled(bytes32 indexed requestId, string encryptedDetails)"
 ]
 
-const contractAddress = "0x240B4DbFEA6952CAa52F6D7AEDf45Afb26adefDD"
+const contractAddress = "0xCAcF45AdcDbA66215f10fe1C5a8a9A822dF2B7c9"
 
 export function DataCleanRoom() {
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
