@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enclave Deployment Test</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Enclave Deployment Test</h1>
+    <button onclick="startDeployment()">Deploy Enclave</button>
+    <div id="status"></div>
+
+    <script>
+        const socket = io('http://localhost:8000/deployment', {
+            path: '/socket.io'
+        });
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            addStatus('Connected to server');
+        });
+
+        socket.on('joined', (data) => {
+            console.log('Successfully joined room:', data);
+            addStatus(`Joined room: ${data.room}`);
+        });
+
+        socket.on('deployment_update_client', (data) => {
+            console.log('Received deployment update:', data);
+            addStatus(`Deployment update: ${data.message}`);
+        });
+
+
+        socket.on('deployment_complete_client', (data) => {
+            console.log('Received deployment complete:', data);
+            const message = `Deployment complete: ${data.data.message}\n` +
+                data.data.enclaves.map(enclave => 
+                    `Enclave: ${enclave.name}\nDomain: ${enclave.domain}`
+                ).join('\n');
+            addStatus(message);
+        });
+
+
+        async function startDeployment() {
+            try {
+                addStatus('Starting deployment request...');
+                const response = await fetch('http://localhost:8000/deploy-enclaves', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        number_of_enclaves: 1
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Response:', data);
+                addStatus(`Started deployment. Room: ${data.socket_room}`);
+                
+                // Join the socket room
+                socket.emit('join', data.socket_room);
+            } catch (error) {
+                console.error('Error:', error);
+                addStatus(`Error: ${error.message}`);
+            }
+        }
+
+        function addStatus(message) {
+            const statusDiv = document.getElementById('status');
+            const p = document.createElement('p');
+            p.textContent = `${new Date().toISOString()} - ${message}`;
+            statusDiv.appendChild(p);
+        }
+    </script>
+</body>
+</html> 

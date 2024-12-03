@@ -1,30 +1,56 @@
-from typing import List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-import subprocess
 import os
-import json
-import tempfile
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+import socketio
+import uuid
+from tasks import deploy_enclaves_task
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
+# Create FastAPI app
+fastapi_app = FastAPI()
+
+
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins='*',
+    logger=True,
+    engineio_logger=True
+)
+
+# Add CORS middleware
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class EnclaveRequest(BaseModel):
     number_of_enclaves: int = Field(..., gt=0, description="Number of enclaves to deploy")
 
-class EnclaveResponse(BaseModel):
-    domain: str
-    pcrs: dict
-    uuid: str
-
-class EnclaveDeploymentResponse(BaseModel):
-    enclaves: List[EnclaveResponse]
+class JobResponse(BaseModel):
+    job_id: str
+    socket_room: str
     message: str
 
-@app.post("/deploy-enclaves", response_model=EnclaveDeploymentResponse)
+
+@fastapi_app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+
+@fastapi_app.post("/deploy-enclaves", response_model=JobResponse)
 async def deploy_enclaves(request: EnclaveRequest):
     try:
         # Get credentials from environment variables
@@ -34,163 +60,92 @@ async def deploy_enclaves(request: EnclaveRequest):
         if not api_key or not app_uuid:
             raise HTTPException(
                 status_code=500,
-                detail="Missing required environment variables: EVERVAULT_API_KEY and EVERVAULT_APP_UUID"
+                detail="Missing required environment variables"
             )
 
-        # First, verify ev CLI is installed
-        try:
-            version_result = subprocess.run(
-                ["ev", "--version"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            print(f"Evervault CLI version: {version_result.stdout}")
-        except subprocess.CalledProcessError:
-            raise HTTPException(
-                status_code=500,
-                detail="Evervault CLI not found. Please install it using: curl https://cli.evervault.com/v4/install -sL | sh"
-            )
-        
-        deployed_enclaves = []
-        
-        # Set environment variables for the CLI
-        env = os.environ.copy()
-        env["EV_API_KEY"] = api_key
-        env["EV_APP_UUID"] = app_uuid
+        # Generate unique room ID for this deployment
+        room_id = str(uuid.uuid4())
 
-        # Create a temporary directory for our work
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Clone the hello-enclave repository
-            repo_name = "hello-enclave"
-            clone_path = os.path.join(temp_dir, repo_name)
-            
-            print(f"Cloning repository to: {clone_path}")
-            clone_result = subprocess.run(
-                ["git", "clone", "https://github.com/evervault/hello-enclave", clone_path],
-                check=True,
-                env=env,
-                capture_output=True,
-                text=True
-            )
-            print(f"Cloned repository to: {clone_path}")
-            
-            # List files in clone_path to verify
-            print("Files in cloned repository:")
-            for file in os.listdir(clone_path):
-                print(f"- {file}")
-
-            # Verify the Dockerfile exists
-            dockerfile_path = os.path.join(clone_path, "Dockerfile")
-            print(f"Dockerfile path: {dockerfile_path}")
-            if not os.path.exists(dockerfile_path):
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Dockerfile not found at {dockerfile_path}"
-                )
-            
-            print(f"Found Dockerfile at: {dockerfile_path}")
-            
-            # Verify other required files
-            required_files = ["index.js", "package.json", "package-lock.json"]
-            for file in required_files:
-                file_path = os.path.join(clone_path, file)
-                if not os.path.exists(file_path):
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Required file {file} not found at {file_path}"
-                    )
-                print(f"Found required file: {file}")
-
-            for i in range(request.number_of_enclaves):
-                enclave_name = f"enclave-{i}"
-                
-                print(f"Initializing enclave: {enclave_name}")
-                try:
-                    init_result = subprocess.run(
-                        ["ev", "enclave", "init",
-                         "-f", dockerfile_path,
-                         "--name", enclave_name,
-                         "--egress"],
-                        cwd=clone_path,
-                        env=env,
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    print(f"Initialization command output: {init_result.stdout}")
-                    if init_result.stderr:
-                        print(f"Initialization stderr: {init_result.stderr}")
-                except subprocess.CalledProcessError as e:
-                    print(f"Initialization failed: {e.stdout}\n{e.stderr}")
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to initialize enclave: {e.stdout}\n{e.stderr}"
-                    )
-
-                print(f"Deploying enclave: {enclave_name}")
-                try:
-                    deploy_result = subprocess.run(
-                        ["ev", "enclave", "deploy", "-v"],
-                        cwd=clone_path,
-                        env=env,
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    print(f"Deployment command output: {deploy_result.stdout}")
-                    if deploy_result.stderr:
-                        print(f"Deployment stderr: {deploy_result.stderr}")
-                except subprocess.CalledProcessError as e:
-                    print(f"Deployment failed: {e.stdout}\n{e.stderr}")
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to deploy enclave: {e.stdout}\n{e.stderr}"
-                    )
-
-                # Parse the enclave.toml file to get PCRs and other info
-                enclave_toml = os.path.join(clone_path, "enclave.toml")
-                if not os.path.exists(enclave_toml):
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"enclave.toml not found at {enclave_toml}"
-                    )
-
-                with open(enclave_toml, "r") as f:
-                    config_content = f.read()
-                    # Extract UUID and other details from config
-                    uuid = None
-                    pcrs = {}
-                    for line in config_content.split("\n"):
-                        if line.startswith("uuid"):
-                            uuid = line.split("=")[1].strip().strip('"')
-                        elif line.startswith("PCR"):
-                            pcr_num = line[3]
-                            pcr_value = line.split("=")[1].strip().strip('"')
-                            pcrs[f"pcr{pcr_num}"] = pcr_value
-
-                deployed_enclaves.append(EnclaveResponse(
-                    domain=f"{enclave_name}.{app_uuid}.enclave.evervault.com",
-                    pcrs=pcrs,
-                    uuid=uuid
-                ))
-
-        return EnclaveDeploymentResponse(
-            enclaves=deployed_enclaves,
-            message=f"Successfully deployed {request.number_of_enclaves} enclaves"
+        # Start Celery task
+        task = deploy_enclaves_task.delay(
+            room_id,
+            request.number_of_enclaves,
+            api_key,
+            app_uuid
         )
 
-    except subprocess.CalledProcessError as e:
-        print(f"Command failed with output: {e.stdout}\nError: {e.stderr}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to deploy enclave: {e.stdout}\n{e.stderr}"
+        return JobResponse(
+            job_id=task.id,
+            socket_room=room_id,
+            message="Enclave deployment started. Connect to WebSocket for real-time updates."
         )
+
     except Exception as e:
-        print(f"Error: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error deploying enclaves: {str(e)}"
+            detail=f"Error starting deployment: {str(e)}"
         )
+
+@sio.on('connect', namespace='/deployment')
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
+
+@sio.on('join', namespace='/deployment')
+async def join(sid, room):
+    logger.info(f"Client {sid} joining room: {room}")
+    await sio.enter_room(sid, room, namespace='/deployment')
+    # Get all rooms for this sid to verify
+    rooms = await sio.rooms(sid, namespace='/deployment')
+    logger.info(f"Client {sid} is now in rooms: {rooms}")
+    await sio.emit('joined', {'room': room, 'sid': sid}, room=sid, namespace='/deployment')
+    logger.info(f"Client {sid} joined room {room}")
+
+
+@sio.on('deployment_update', namespace='/deployment')
+async def deployment_update(sid, data):
+    logger.info(f"Deployment update received: {data}")
+    room = data.get('room')
+    if room:
+        logger.info(f"Broadcasting update to room {room}")
+        # print all the connected clients to this room 
+        logger.info(f"Connected clients to room {room}: {sio.rooms(room, namespace='/deployment')}")
+        await sio.emit('deployment_update_client', data, room=room, namespace='/deployment')
+    else:
+        logger.error("No room specified in deployment update")
+
+@sio.on('deployment_complete', namespace='/deployment')
+async def deployment_complete(sid, data):
+    logger.info(f"Deployment complete received: {data}")
+    room = data.get('room')
+    if room:
+        logger.info(f"Broadcasting completion to room {room}")
+        await sio.emit('deployment_complete_client', data, room=room, namespace='/deployment')
+    else:
+        logger.error("No room specified in deployment complete")
+
+@sio.on('deployment_error', namespace='/deployment')
+async def deployment_error(sid, data):
+    logger.info(f"Deployment error received: {data}")
+    room = data.get('room')
+    if room:
+        logger.info(f"Broadcasting error to room {room}")
+        await sio.emit('deployment_error_client', data, room=room, namespace='/deployment')
+    else:
+        logger.error("No room specified in deployment error")
+
+@sio.on('disconnect', namespace='/deployment')
+async def disconnect(sid):
+    logger.info(f"Client disconnected: {sid}")
+
+@sio.on('*', namespace='/deployment')
+async def catch_all(event, sid, data):
+    logger.info(f"Caught event: {event} from {sid} with data: {data}")
+
+# Create the ASGI app by mounting both Socket.IO and FastAPI
+app = socketio.ASGIApp(
+    socketio_server=sio,
+    other_asgi_app=fastapi_app,
+    socketio_path='socket.io'
+)
 
 
