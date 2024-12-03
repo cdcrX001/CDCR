@@ -84,10 +84,14 @@ def main():
     # # Step 6: Decrypt the message using the private key
     # decrypted_message = decrypt_message_with_private_key(private_key, encrypted_data)
     # print(f"Decrypted Message: {decrypted_message}")
-    # publickey = decode_base64_to_public_key(base64_public_key="LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF2M0RrY3cyU01OZjQyci9pM2Q1RQpvS0NFUVRMZkZPcGZ1Q3NYMHh0L0xlNnFwdlBodEVCeE5oYUdQWHAyUkFlcGF6YXNyRENyeUxCK0pZR3hBRUIrCmx3ZUloTjErRnJvMEg5dnlnM1VidWVZdkpvOHlTZ0JEUVFkMTU3U2pBRkMxM1BIM0hKQ1hIM3BKeS9leU44dTUKbkE5QTRnU2JVaDc3SDZraUZnSzRWTUkyY2dXK1hJU3pEMXRQRDdiL1Y3K3FzZTlGaGdHSCtqM2xPd2FHQzlVSQpyTGdoVWZYTGZyeDJ3QmNsNXVDdlFRMUlYTTZ5WlNCaC8xWEU1U0ZsbERrMGQzL3BwR29Kd3N6Z0tnS2VvcHAvClFZWk5jWjI5cXM4bzh3WnFQOXZrSTFxcmp6SlNhRXkzS2hNV2p2VENHS0g3UjlPNXFmMDZVaWxySjh2ZGl5TlIKTVFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t")
-    # print(encrypt_message_with_public_key(public_key=publickey,message="hello"))
-    # a = encrypt_message_with_public_key(public_key=publickey,message="hello")
-    # print(decode_base64_to_encrypted_message(base64_encrypted_message=a))
+    publickey = decode_base64_to_public_key(base64_public_key="LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF2M0RrY3cyU01OZjQyci9pM2Q1RQpvS0NFUVRMZkZPcGZ1Q3NYMHh0L0xlNnFwdlBodEVCeE5oYUdQWHAyUkFlcGF6YXNyRENyeUxCK0pZR3hBRUIrCmx3ZUloTjErRnJvMEg5dnlnM1VidWVZdkpvOHlTZ0JEUVFkMTU3U2pBRkMxM1BIM0hKQ1hIM3BKeS9leU44dTUKbkE5QTRnU2JVaDc3SDZraUZnSzRWTUkyY2dXK1hJU3pEMXRQRDdiL1Y3K3FzZTlGaGdHSCtqM2xPd2FHQzlVSQpyTGdoVWZYTGZyeDJ3QmNsNXVDdlFRMUlYTTZ5WlNCaC8xWEU1U0ZsbERrMGQzL3BwR29Kd3N6Z0tnS2VvcHAvClFZWk5jWjI5cXM4bzh3WnFQOXZrSTFxcmp6SlNhRXkzS2hNV2p2VENHS0g3UjlPNXFmMDZVaWxySjh2ZGl5TlIKTVFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t")
+    a = encrypt_message_with_public_key(public_key=publickey,message="""{
+    "job_id": "d4a186fe-4c95-412d-b21e-dd3b9781ba48",
+    "socket_room": "d033be16-9c95-4212-baa2-1fe65ca4d48c",
+    "socket_url": "https://df54-49-207-244-10.ngrok-free.app/deployment"
+    "message": "Enclave deployment started. Connect to WebSocket for real-time updates."
+}""")
+    print(decode_base64_to_encrypted_message(base64_encrypted_message=a))
 
 if __name__ == "__main__":
     main()
