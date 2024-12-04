@@ -24,7 +24,8 @@ const contractABI = [
   "event EnclaveFulfilled(bytes32 indexed requestId, string encryptedDetails)"
 ]
 
-const contractAddress = "0xCAcF45AdcDbA66215f10fe1C5a8a9A822dF2B7c9"
+const contractAddress = "0xB2a1d19F5f9A7c3b97062C83f993447C96559e25"
+
 
 export function DataCleanRoom() {
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
@@ -232,7 +233,7 @@ export function DataCleanRoom() {
       const keyPair = await window.crypto.subtle.generateKey(
         {
           name: "RSA-OAEP",
-          modulusLength: 4096,
+          modulusLength: 2048,
           publicExponent: new Uint8Array([1, 0, 1]),
           hash: "SHA-256",
         },
