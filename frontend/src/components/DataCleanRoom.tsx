@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
+import { io, Socket } from 'socket.io-client'
 
 // Extend Window interface to include ethereum property
 declare global {
@@ -40,6 +41,21 @@ export function DataCleanRoom() {
   const [keyPair, setKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
   const [retrievedData, setRetrievedData] = useState<string>('')
   const [decryptedData, setDecryptedData] = useState<string>('')
+  const [socket, setSocket] = useState<Socket | null>(null)
+  const [deploymentStatus, setDeploymentStatus] = useState<{
+    status: 'idle' | 'deploying' | 'completed';
+    enclaveDetails?: {
+      name: string;
+      domain: string;
+      pcrs: {
+        pcr0: string;
+        pcr1: string;
+        pcr2: string;
+        pcr8: string;
+      };
+      uuid: string;
+    };
+  }>({ status: 'idle' });
 
   useEffect(() => {
     const init = async () => {
@@ -65,6 +81,9 @@ export function DataCleanRoom() {
     return () => {
       if (window.ethereum?.removeListener) {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
+      }
+      if (socket) {
+        socket.disconnect()
       }
     }
   }, [])
@@ -197,7 +216,20 @@ export function DataCleanRoom() {
         const decryptedText = new TextDecoder('utf-8').decode(decryptedBytes);
         console.log('Decrypted text:', decryptedText);
         
-        setDecryptedData(decryptedText);
+        // Try to parse as JSON and check for socket information
+        try {
+          const jsonData = JSON.parse(decryptedText)
+          setDecryptedData(decryptedText)
+          
+          // If we have socket information, connect to the socket
+          if (jsonData.socket_server_url && jsonData.socket_room) {
+            connectToSocket(jsonData)
+          }
+        } catch (jsonError) {
+          // If it's not JSON, just set it as regular text
+          setDecryptedData(decryptedText)
+        }
+        
         setEnclaveDetails(decryptedText);
       } catch (error: any) {
         console.error('Decryption error:', error);
@@ -358,8 +390,57 @@ export function DataCleanRoom() {
 
       const decryptedText = new TextDecoder().decode(decryptedBytes)
       setDecryptedData(decryptedText)
-    } catch (err) {
+    } catch (err: any) {
       setError('Error retrieving/decrypting data: ' + err.message)
+    }
+  }
+
+  const connectToSocket = (socketData: any) => {
+    try {
+      const { socket_server_url, socket_room } = socketData
+      
+      // Disconnect existing socket if any
+      if (socket) {
+        socket.disconnect()
+      }
+
+      // Create new socket connection
+      const newSocket = io(socket_server_url, {
+        path: '/socket.io'
+      })
+
+      // Set up socket event listeners
+      newSocket.on('connect', () => {
+        console.log('Connected to deployment socket')
+        // Join the specific room
+        newSocket.emit('join', socket_room)
+      })
+
+      newSocket.on('joined', (data: any) => {
+        console.log('Successfully joined room:', data)
+      })
+
+      newSocket.on('deployment_update_client', (data) => {
+        console.log('Deployment update:', data);
+        setDeploymentStatus(prev => ({
+          ...prev,
+          status: 'deploying'
+        }));
+      });
+
+      newSocket.on('deployment_complete_client', ([eventName, data]: [string, any]) => {
+        console.log('Deployment complete:', data);
+        setDeploymentStatus({
+          status: 'completed',
+          enclaveDetails: data.enclave
+        });
+      });
+
+      setDeploymentStatus({ status: 'deploying' });
+      setSocket(newSocket);
+    } catch (error) {
+      console.error('Error connecting to socket:', error)
+      setError('Failed to connect to deployment socket')
     }
   }
 
@@ -461,6 +542,63 @@ export function DataCleanRoom() {
                 <div className="space-y-2">
                   <h3 className="font-bold">Decrypted Data:</h3>
                   <p className="text-xs break-all bg-gray-100 p-2 rounded">{decryptedData}</p>
+                </div>
+              )}
+
+              {decryptedData && (
+                <div className="space-y-4 mt-4">
+                  <h3 className="font-bold">Enclave Deployment Status:</h3>
+                  
+                  {deploymentStatus.status === 'deploying' && (
+                    <div className="bg-yellow-50 p-4 rounded-md">
+                      <div className="flex items-center space-x-3">
+                        <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+                        <p className="text-sm text-yellow-700">Enclave deployment in progress...</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {deploymentStatus.status === 'completed' && deploymentStatus.enclaveDetails && (
+                    <div className="bg-green-50 p-4 rounded-md space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        <p className="text-sm font-medium text-green-800">
+                          Enclave Deployment Completed
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="col-span-1 font-medium">Name:</div>
+                          <div className="col-span-2 font-mono text-xs">
+                            {deploymentStatus.enclaveDetails.name}
+                          </div>
+                          
+                          <div className="col-span-1 font-medium">Domain:</div>
+                          <div className="col-span-2 font-mono text-xs break-all">
+                            {deploymentStatus.enclaveDetails.domain}
+                          </div>
+                          
+                          <div className="col-span-1 font-medium">UUID:</div>
+                          <div className="col-span-2 font-mono text-xs">
+                            {deploymentStatus.enclaveDetails.uuid}
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-sm font-medium mb-2">PCR Values:</p>
+                          <div className="bg-white bg-opacity-50 p-2 rounded space-y-1">
+                            {Object.entries(deploymentStatus.enclaveDetails.pcrs).map(([key, value]) => (
+                              <div key={key} className="grid grid-cols-4 gap-2 text-xs">
+                                <div className="font-medium">{key}:</div>
+                                <div className="col-span-3 font-mono break-all">{value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

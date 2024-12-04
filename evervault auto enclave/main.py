@@ -42,7 +42,7 @@ class EnclaveRequest(BaseModel):
 class JobResponse(BaseModel):
     job_id: str
     socket_room: str
-    message: str
+    socket_server_url: str
 
 
 @fastapi_app.get("/")
@@ -77,7 +77,7 @@ async def deploy_enclaves(request: EnclaveRequest):
         return JobResponse(
             job_id=task.id,
             socket_room=room_id,
-            message="Enclave deployment started. Connect to WebSocket for real-time updates."
+            socket_server_url="http://localhost:8000/deployment"
         )
 
     except Exception as e:
