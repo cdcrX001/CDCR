@@ -13,6 +13,18 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
+
+# initial export of env variables
+print(f"API Key: {os.getenv('EVERVAULT_API_KEY')}")
+print(f"App UUID: {os.getenv('EVERVAULT_APP_UUID')}")
+
+
+# If you need to set environment variables, use os.environ instead:
+os.environ["EV_API_KEY"] = os.getenv('EVERVAULT_API_KEY')
+os.environ["EV_APP_UUID"] = os.getenv('EVERVAULT_APP_UUID')
+
+
 # Initialize Socket.IO client
 sio = socketio.Client(logger=True, engineio_logger=True)
 
