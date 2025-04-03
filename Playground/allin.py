@@ -1,7 +1,11 @@
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 import base64
+import os
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
 # Step 1: Generate public-private key pair
 def generate_rsa_keys():
@@ -62,35 +66,19 @@ def decrypt_message_with_private_key(private_key, encrypted_data):
 
 # Main function to test the whole process
 def main():
-    # Generate public-private key pair
-    # private_key, public_key = generate_rsa_keys()
+    # Get public key from environment variable
+    base64_public_key = os.getenv('PUBLIC_KEY')
+    if not base64_public_key:
+        raise ValueError("PUBLIC_KEY environment variable is not set")
 
-    # # Step 2: Encode the public key as Base64
-    # base64_public_key = encode_public_key_to_base64(public_key)
-    # print(f"Base64 Encoded Public Key: {base64_public_key}")
-
-    # # Step 3: Decode the public key from Base64
-    # decoded_public_key = decode_base64_to_public_key(base64_public_key)
-
-    # # Step 4: Encrypt a message using the decoded public key
-    # message = "This is a secret message."
-    # encrypted_message = encrypt_message_with_public_key(decoded_public_key, message)
-    # print(f"Encrypted Message (Base64): {encrypted_message}")
-
-    # # Step 5: Decode the encrypted message from Base64
-    # encrypted_data = decode_base64_to_encrypted_message(encrypted_message)
-    # print("encryptedbase64: ",encrypted_data)
-
-    # # Step 6: Decrypt the message using the private key
-    # decrypted_message = decrypt_message_with_private_key(private_key, encrypted_data)
-    # print(f"Decrypted Message: {decrypted_message}")
-    publickey = decode_base64_to_public_key(base64_public_key="LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF2M0RrY3cyU01OZjQyci9pM2Q1RQpvS0NFUVRMZkZPcGZ1Q3NYMHh0L0xlNnFwdlBodEVCeE5oYUdQWHAyUkFlcGF6YXNyRENyeUxCK0pZR3hBRUIrCmx3ZUloTjErRnJvMEg5dnlnM1VidWVZdkpvOHlTZ0JEUVFkMTU3U2pBRkMxM1BIM0hKQ1hIM3BKeS9leU44dTUKbkE5QTRnU2JVaDc3SDZraUZnSzRWTUkyY2dXK1hJU3pEMXRQRDdiL1Y3K3FzZTlGaGdHSCtqM2xPd2FHQzlVSQpyTGdoVWZYTGZyeDJ3QmNsNXVDdlFRMUlYTTZ5WlNCaC8xWEU1U0ZsbERrMGQzL3BwR29Kd3N6Z0tnS2VvcHAvClFZWk5jWjI5cXM4bzh3WnFQOXZrSTFxcmp6SlNhRXkzS2hNV2p2VENHS0g3UjlPNXFmMDZVaWxySjh2ZGl5TlIKTVFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t")
-    a = encrypt_message_with_public_key(public_key=publickey,message="""{
+    publickey = decode_base64_to_public_key(base64_public_key)
+    message = """{
     "job_id": "d4a186fe-4c95-412d-b21e-dd3b9781ba48",
     "socket_room": "d033be16-9c95-4212-baa2-1fe65ca4d48c",
     "socket_url": "https://df54-49-207-244-10.ngrok-free.app/deployment"
     "message": "Enclave deployment started. Connect to WebSocket for real-time updates."
-}""")
+}"""
+    a = encrypt_message_with_public_key(public_key=publickey, message=message)
     print(decode_base64_to_encrypted_message(base64_encrypted_message=a))
 
 if __name__ == "__main__":

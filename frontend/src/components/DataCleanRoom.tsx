@@ -8,6 +8,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
+import { config, validateConfig, getContractABI } from '../config'
+
+// Environment variables types
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      NEXT_PUBLIC_CONTRACT_ADDRESS: string
+      NEXT_PUBLIC_NETWORK_ID: string
+      NEXT_PUBLIC_NETWORK_NAME: string
+      NEXT_PUBLIC_API_BASE_URL: string
+      NEXT_PUBLIC_DEV_MODE: string
+    }
+  }
+}
 
 // Extend Window interface to include ethereum property
 declare global {
@@ -15,18 +29,6 @@ declare global {
     ethereum?: any;
   }
 }
-
-const contractABI = [
-  "function requestEnclaveCreation(string memory publicKey) public payable returns (bytes32 requestId)",
-  "function getEnclaveDetails(bytes32 requestId) public view returns (string memory)",
-  "function userRequests(address user, uint256 index) public view returns (bytes32)",
-  "function enclaveRequests(bytes32 requestId) public view returns (address user, string encryptedDetails, uint256 createdAt)",
-  "event EnclaveRequested(bytes32 indexed requestId, address indexed user)",
-  "event EnclaveFulfilled(bytes32 indexed requestId, string encryptedDetails)"
-]
-
-const contractAddress = "0xB2a1d19F5f9A7c3b97062C83f993447C96559e25"
-
 
 export function DataCleanRoom() {
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null)
@@ -39,8 +41,8 @@ export function DataCleanRoom() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyPair, setKeyPair] = useState<{ publicKey: string; privateKey: string } | null>(null)
-  const [retrievedData, setRetrievedData] = useState<string>('')
-  const [decryptedData, setDecryptedData] = useState<string>('')
+  const [retrievedData, setRetrievedData] = useState<string | null>(null)
+  const [decryptedData, setDecryptedData] = useState<string | null>(null)
   const [socket, setSocket] = useState<Socket | null>(null)
   const [deploymentStatus, setDeploymentStatus] = useState<{
     status: 'idle' | 'deploying' | 'completed';
@@ -58,32 +60,41 @@ export function DataCleanRoom() {
   }>({ status: 'idle' });
 
   useEffect(() => {
-    const init = async () => {
-      if (typeof window.ethereum !== 'undefined') {
-        try {
-          const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
-          setProvider(web3Provider)
+    const initializeContract = async () => {
+      try {
+        // Validate configuration
+        validateConfig()
 
-          const signer = web3Provider.getSigner()
-          const enclaveContract = new ethers.Contract(contractAddress, contractABI, signer)
-          setContract(enclaveContract)
-
-          window.ethereum.on('accountsChanged', handleAccountsChanged)
-        } catch (error) {
-          console.error('Initialization error:', error)
-          setError('Failed to initialize Web3')
+        if (!window.ethereum) {
+          throw new Error('Web3 provider not found')
         }
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum)
+        setProvider(provider)
+
+        // Check if we're on the correct network
+        const network = await provider.getNetwork()
+        if (network.chainId.toString() !== config.networkId) {
+          throw new Error(`Please switch to ${config.networkName} network`)
+        }
+
+        const signer = provider.getSigner()
+        const contractABI = await getContractABI()
+        const contract = new ethers.Contract(config.contractAddress, contractABI, signer)
+        setContract(contract)
+
+        window.ethereum.on('accountsChanged', handleAccountsChanged)
+      } catch (error: any) {
+        console.error('Initialization error:', error)
+        setError(error.message)
       }
     }
 
-    init()
+    initializeContract()
 
     return () => {
-      if (window.ethereum?.removeListener) {
+      if (window.ethereum) {
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
-      }
-      if (socket) {
-        socket.disconnect()
       }
     }
   }, [])
@@ -342,7 +353,7 @@ export function DataCleanRoom() {
       const provider = new ethers.providers.Web3Provider(window.ethereum)
       await provider.send('eth_requestAccounts', [])
       const signer = provider.getSigner()
-      const contract = new ethers.Contract(contractAddress, contractABI, signer)
+      const contract = new ethers.Contract(config.contractAddress, contractABI, signer)
 
       const publicKeyBase64 = btoa(keyPair.publicKey)
       const tx = await contract.submitPublicKey(publicKeyBase64)
@@ -360,7 +371,7 @@ export function DataCleanRoom() {
       }
 
       const provider = new ethers.providers.Web3Provider(window.ethereum)
-      const contract = new ethers.Contract(contractAddress, contractABI, provider)
+      const contract = new ethers.Contract(config.contractAddress, contractABI, provider)
       
       const encryptedData = await contract.retrieveDetails()
       setRetrievedData(encryptedData)

@@ -8,12 +8,13 @@ import uuid
 from tasks import deploy_enclaves_task
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 # Load environment variables
 load_dotenv()
+
+# Set up logging
+logging_level = logging.DEBUG if os.getenv('DEBUG', 'false').lower() == 'true' else logging.INFO
+logging.basicConfig(level=logging_level)
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 fastapi_app = FastAPI()
@@ -23,8 +24,8 @@ fastapi_app = FastAPI()
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',
-    logger=True,
-    engineio_logger=True
+    logger=logging_level == logging.DEBUG,
+    engineio_logger=logging_level == logging.DEBUG
 )
 
 # Add CORS middleware
@@ -60,7 +61,7 @@ async def deploy_enclaves(request: EnclaveRequest):
         if not api_key or not app_uuid:
             raise HTTPException(
                 status_code=500,
-                detail="Missing required environment variables"
+                detail="Missing required environment variables: EVERVAULT_API_KEY and/or EVERVAULT_APP_UUID"
             )
 
         # Generate unique room ID for this deployment
@@ -74,13 +75,15 @@ async def deploy_enclaves(request: EnclaveRequest):
             app_uuid
         )
 
+        socket_server_url = os.getenv('SOCKET_IO_SERVER_URL', 'http://localhost:8000')
         return JobResponse(
             job_id=task.id,
             socket_room=room_id,
-            socket_server_url="http://localhost:8000/deployment"
+            socket_server_url=socket_server_url
         )
 
     except Exception as e:
+        logger.error(f"Error starting deployment: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Error starting deployment: {str(e)}"

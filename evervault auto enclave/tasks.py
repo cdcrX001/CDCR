@@ -8,9 +8,14 @@ import json
 from datetime import datetime
 import time
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging_level = logging.DEBUG if os.getenv('DEBUG', 'false').lower() == 'true' else logging.INFO
+logging.basicConfig(level=logging_level)
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +31,7 @@ os.environ["EV_APP_UUID"] = os.getenv('EVERVAULT_APP_UUID')
 
 
 # Initialize Socket.IO client
-sio = socketio.Client(logger=True, engineio_logger=True)
+sio = socketio.Client(logger=logging_level == logging.DEBUG, engineio_logger=logging_level == logging.DEBUG)
 
 # Add connection event handlers
 @sio.on('connect', namespace='/deployment')
@@ -78,19 +83,34 @@ def safe_emit(event, data, namespace):
     except Exception as e:
         logger.error(f"Error emitting {event}: {e}")
 
+def get_env_with_credentials() -> Dict[str, str]:
+    """Get environment variables with required credentials"""
+    env = os.environ.copy()
+    
+    # Check for required environment variables
+    required_vars = ['EVERVAULT_API_KEY', 'EVERVAULT_APP_UUID']
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    
+    if missing_vars:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+    
+    # Set Evervault environment variables
+    env["EV_API_KEY"] = os.getenv('EVERVAULT_API_KEY')
+    env["EV_APP_UUID"] = os.getenv('EVERVAULT_APP_UUID')
+    
+    return env
+
 @celery_app.task(bind=True)
 def deploy_enclaves_task(self, room_id: str, number_of_enclaves: int, api_key: str, app_uuid: str) -> Dict[str, Any]:
     try:
-        logger.info(f"Connecting to Socket.IO server for room {room_id}")
-        sio.connect('http://localhost:8000', namespaces=['/deployment'], socketio_path='socket.io')
+        logger.info(f"Starting deployment for room {room_id}")
+        socket_server_url = os.getenv('SOCKET_IO_SERVER_URL', 'http://localhost:8000')
+        sio.connect(socket_server_url, namespaces=['/deployment'], socketio_path='socket.io')
         logger.info("Connected to Socket.IO server")
 
         deployed_enclaves = []
-        env = os.environ.copy()
-        env["EV_API_KEY"] = api_key
-        env["EV_APP_UUID"] = app_uuid
-        # put an update in the log
-        print(f"Deploying {number_of_enclaves} enclaves")
+        env = get_env_with_credentials()
+
         # Send initial status
         safe_emit('deployment_update', {
             'room': room_id,

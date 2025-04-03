@@ -5,6 +5,11 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 import base64
 import requests
 import json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI()
 
@@ -51,10 +56,20 @@ async def get_test_data(publicKey: str = Query(...)):
     print("Received public key:", publicKey)
     
     try:
+        # Get deployment URL from environment variables
+        deployment_url = os.getenv("ENCLAVE_DEPLOYMENT_URL")
+        if not deployment_url:
+            raise HTTPException(status_code=500, detail="Deployment URL not configured")
+
         # Make request to enclave deployment endpoint
-        url = "https://df54-49-207-244-10.ngrok-free.app/deploy-enclaves"
         payload = {"number_of_enclaves": 1}
-        response = requests.post(url, json=payload)
+        headers = {
+            "Content-Type": "application/json",
+            "X-Evervault-API-Key": os.getenv("EVERVAULT_API_KEY"),
+            "X-App-UUID": os.getenv("EVERVAULT_APP_UUID")
+        }
+        
+        response = requests.post(deployment_url, json=payload, headers=headers)
         response.raise_for_status()  # Raise exception for bad status codes
         
         data_to_encrypt = response.json()
@@ -71,4 +86,4 @@ async def get_test_data(publicKey: str = Query(...)):
 
 @app.get("/")
 async def root():
-    return {"message": "FastAPI server is running"}
+    return {"message": "FastAPI server is running"}

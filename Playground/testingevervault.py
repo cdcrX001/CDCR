@@ -1,7 +1,14 @@
 import requests
+import os
+from dotenv import load_dotenv
 
-# API endpoint
-url = "https://14df-103-214-61-70.ngrok-free.app/deploy-enclaves"
+# Load environment variables
+load_dotenv()
+
+# Get API endpoint from environment variable
+url = os.getenv('API_ENDPOINT')
+if not url:
+    raise ValueError("API_ENDPOINT environment variable is not set")
 
 # Request body
 payload = {

@@ -5,6 +5,11 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 import base64
 import requests
 import json
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI()
 
@@ -52,7 +57,10 @@ async def get_test_data(publicKey: str = Query(...)):
     
     try:
         # Make request to enclave deployment endpoint
-        url = "https://df54-49-207-244-10.ngrok-free.app/deploy-enclaves"
+        url = os.getenv("ENCLAVE_DEPLOYMENT_URL")
+        if not url:
+            raise HTTPException(status_code=500, detail="ENCLAVE_DEPLOYMENT_URL environment variable is not set")
+            
         payload = {"number_of_enclaves": 1}
         response = requests.post(url, json=payload)
         response.raise_for_status()  # Raise exception for bad status codes
