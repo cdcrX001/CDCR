@@ -3,6 +3,8 @@
 CDCR is a decentralized platform that combines blockchain technology with confidential computing using Evervault enclaves to provide secure and verifiable computation resources.
 
 ## 🏗️ Architecture
+![mermaid-diagram-2025-04-04-012851](https://github.com/user-attachments/assets/bf66af31-cf8e-48d3-bedf-0ec7e08ab0f9)
+
 
 The project consists of four main components:
 
