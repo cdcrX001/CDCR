@@ -1,4 +1,4 @@
-# CDCR (Confidential Decentralized Compute Resource)
+# CDCR (Confidential Decentralized Data Clean Rooms)
 
 CDCR is a decentralized platform that combines blockchain technology with confidential computing using Evervault enclaves to provide secure and verifiable computation resources.
 
